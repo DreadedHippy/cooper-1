@@ -25,7 +25,7 @@ export default async function workPostHandler(msg) {
                 const annotationLines = msg.content.split('\n');
                 const name = annotationLines[0] || 'Another The Coop Image!'
 
-                // Remove the name now it is no longer needed.
+                // Remove the name now that it is no longer needed.
                 annotationLines.shift()
 
                 const description = annotationLines.join('\n') + "\n\n" +

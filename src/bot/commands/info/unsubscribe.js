@@ -20,7 +20,7 @@ export default class UnsubscribeCommand extends CoopCommand {
 
         try {
 			await SubscriptionHelper.unsubscribe(msg.author.id);
-			// TODO: Beg them a lil bit more and ask for feedback.
+			// TODO: Beg them a little bit more and ask for feedback.
 			setTimeout(() => msg.say(`${msg.author.username} unsubscribed.`), 666);
 
         } catch(err) {

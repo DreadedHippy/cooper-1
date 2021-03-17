@@ -495,7 +495,7 @@ export default class ElectionHelper {
         return candidate;
     }
 
-    // TODO: could use this feature/data to direct message the candidates an update
+    // TODO: could use this feature/data to directly message the candidates an update
     static async fetchAllVotes() {
         const votes = [];
 

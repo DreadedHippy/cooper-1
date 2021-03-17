@@ -37,7 +37,7 @@ export default class ItemsCommand extends CoopCommand {
 		if (msg.mentions.users.first()) targetUser = msg.mentions.users.first();
 		if (!targetUser) targetUser = msg.author;
 		
-		// Try to interpret itemCode/itemEmoji arg
+		// Try to interpret itemCode/itemEmoji arg(ument?)
 		const itemInput = ItemsHelper.interpretItemCodeArg(itemCode);
 
         try {
