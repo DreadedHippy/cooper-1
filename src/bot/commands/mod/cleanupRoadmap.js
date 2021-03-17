@@ -14,7 +14,7 @@ export default class CleanupRoadmapCommand extends CoopCommand {
 			details: `Details`,
 			examples: ['cur', 'cur example?'],
 
-			// Stop us getting nuked
+			// Stop us getting nuked.
 			ownerOnly: true,
 		});
 	}
@@ -22,13 +22,13 @@ export default class CleanupRoadmapCommand extends CoopCommand {
 	async run(msg) {
 		super.run(msg);
 		
-		// Delete all messages with check marks inside roadmap
+		// Delete all messages with checkmarks inside roadmap
 		const roadmap = ChannelsHelper._getCode('ROADMAP');
 
 		const msgs = await roadmap.messages.fetch({ limit: 100 });
 		const forRemoval = msgs.filter(msg => {
 			let hasElectedTrashEmoji = false;
-			// Check if it has check mark emoji on it.
+			// Check if it has checkmark emoji on it.
 			msg.reactions.cache.map(rct => {
 				if (rct.emoji.name === '✅') hasElectedTrashEmoji = true;
 			});
