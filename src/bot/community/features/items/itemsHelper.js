@@ -11,18 +11,61 @@ import AverageEggHandler from "./handlers/averageEggHandler";
 import RareEggHandler from "./handlers/rareEggHandler";
 import LegendaryEggHandler from "./handlers/legendaryEggHandler";
 import DiamondHandler from "./handlers/diamondHandler";
+import UsersHelper from "../../../core/entities/users/usersHelper";
+import EggHuntMinigame from "../minigame/small/egghunt";
+import ChannelsHelper from "../../../core/entities/channels/channelsHelper";
+import ReactionHelper from "../../../core/entities/messages/reactionHelper";
+import Chicken from "../../chicken";
 
 
 export default class ItemsHelper {
 
     static async onReaction(reaction, user) {
-        BombHandler.onReaction(reaction, user);
-        ToxicEggHandler.onReaction(reaction, user);
+
+        // Prevent Cooper from interacting with items.
+        if (!UsersHelper.isCooper(user.id)) {
+            
+            BombHandler.onReaction(reaction, user);
+            ToxicEggHandler.onReaction(reaction, user);
+            LegendaryEggHandler.onReaction(reaction, user);
+
+            DiamondHandler.onReaction(reaction, user);
+    
+            // Check if message is dropped item message being picked up.
+            if (this.isPickupable(reaction, user)) this.pickup(reaction, user);
+        }
+
+        // Allow Cooper to add average/rare eggs when prompted.
+        // TODO: Should fail silently.
         AverageEggHandler.onReaction(reaction, user);
         RareEggHandler.onReaction(reaction, user);
-        LegendaryEggHandler.onReaction(reaction, user);
-        DiamondHandler.onReaction(reaction, user);
     }
+
+
+    // Input Takes a string and extracts the items mentioned in it. Returns an array containing the item codes. The search is greedy so will extrct the longest possible name
+    static parseItemCodes(inputString) {
+        // Remove multiple spaces and make uppercase
+        const str = inputString.replace(/\s\s+/g, ' ').toUpperCase();
+
+        const usableItemsStr = ItemsHelper.getUsableItems();
+
+        // Generate The regex to match the items. This is only done once to save server time
+        const matchRegex = new RegExp("(" + usableItemsStr.join("|").replace("_", "[_\\s]") + ")", 'g');
+
+        // Match with the regex. This returns an array of the found matches
+        const matches = str.match(matchRegex);
+
+        // Return matches as canonical item codes
+        return matches.map(x => x.replace(/\s/g, '_'));
+    }
+
+    static beautifyItemCode(itemCode) {
+        const lowerName = itemCode.replace("_", " ").toLowerCase();
+        const nameCapitalized = lowerName.charAt(0).toUpperCase() + lowerName.slice(1);
+        const emoji = MessagesHelper.emojifyID(EMOJIS[itemCode]);
+        return nameCapitalized + " " + emoji;
+    }
+
 
     static async add(userID, item_code, quantity) {
         const query = {
@@ -79,7 +122,7 @@ export default class ItemsHelper {
 
     static async hasQty(userID, itemCode, qty) {
         const hasQty = await this.getUserItemQty(userID, itemCode);
-        return (hasQty => qty);
+        return hasQty >= qty;
     }
     
     static async getUserItems(userID) {
@@ -137,7 +180,7 @@ export default class ItemsHelper {
         let itemDisplayMsg = `${user.username}'s items:`;
         items.forEach(item => {
             const emojiIcon = MessagesHelper.emojifyID(EMOJIS[item.item_code]);
-            const itemText = `\n${emojiIcon} (${item.item_code}) x ${item.quantity}`;
+            const itemText = `\nx${item.quantity} ${this.escCode(item.item_code)} ${emojiIcon}`;
             itemDisplayMsg += itemText;
         })
         return itemDisplayMsg
@@ -153,13 +196,13 @@ export default class ItemsHelper {
             return true;
         } else return false;
     }
-
-    static dropItem() {}
-    
-    static dropItems() {}
  
     static isUsable(itemCode) {
 		return this.getUsableItems().includes(itemCode);
+    }
+
+    static escCode(itemCode) {
+        return `**${itemCode.replace('_', '\\_')}**`;
     }
 
     static parseFromStr(str) {
@@ -178,29 +221,7 @@ export default class ItemsHelper {
         return Object.keys(EMOJIS).filter(codeFilter);
     }
 
-    //Input Takes a string and extracts the items mentioned in it. Returns an array containing the item codes. The search is greedy so will extrct the longest possible name
-    static parseItemCodes(inputString) {
-        // Remove multiple spaces and make uppercase
-        const str = inputString.replace(/\s\s+/g, ' ').toUpperCase();
-
-        const usableItemsStr = ItemsHelper.getUsableItems();
-
-        // Generate The regex to match the items. This is only done once to save server time
-        const matchRegex = new RegExp("(" + usableItemsStr.join("|").replace("_", "[_\\s]") + ")", 'g');
-
-        // Match with the regex. This returns an array of the found matches
-        const matches = str.match(matchRegex);
-
-        // Return matches as canonical item codes
-        return matches.map(x => x.replace(/\s/g, '_'));
-    }
-
-    static beautifyItemCode(Code) {
-        const LowerName = Code.replace("_", " ").toLowerCase();
-        const nameCapitalized = LowerName.charAt(0).toUpperCase() + LowerName.slice(1);
-        const emoji = MessagesHelper.emojifyID(EMOJIS[Code]);
-        return nameCapitalized + " " + emoji;
-    }
+  
 
     static async getUserWithItem(itemCode) {
         const query = {
@@ -221,6 +242,103 @@ export default class ItemsHelper {
         const result = await Database.query(query);
         return DatabaseHelper.many(result);
     }
+    
+    static itemEmojiQtyStr(itemCode, itemQty = 1) {
+        return `${MessagesHelper._displayEmojiCode(itemCode)}x${itemQty}`;
+    }
+
+    static gainItemQtyStr(itemCode, itemQty = 1) {
+        return `-> ${this.itemEmojiQtyStr(itemCode, itemQty)}`;
+    }
+
+    static lossItemQtyStr(itemCode, itemQty = 1) {
+        return `<- ${this.itemEmojiQtyStr(itemCode, itemQty)}`;
+    }
+
+    static exchangeItemsQtysStr(lossItem, lossQty, gainItem, gainQty) {
+        return `${this.lossItemQtyStr(lossItem, lossQty)}\n${this.gainItemQtyStr(gainItem, gainQty)}`;
+    }
+
+    // Check if a message has an emoji and is pickupable.
+    static isPickupable(reaction, user) {
+        // Filter out eggs, since they already have their own handler.
+        if (EggHuntMinigame.isEgghuntDrop(reaction)) return false;
+
+        // Check if message has dropped emoji and by Cooper (official/valid drop).
+        const officiallyDropped = ReactionHelper.didUserReactWith(
+            reaction.message, 
+            Chicken.getDiscordID(), 
+            EMOJIS.DROPPED
+        );
+        if (!officiallyDropped) return false;
+
+
+        // Check if they are trying to collect via basket
+        if (reaction.emoji.name !== EMOJIS.BASKET) return false;
+
+        // Appears to be safe to pickup.
+        return true;
+    }
+
+    static emojiToItemCode(emoji) {
+        let itemCode = null;
+        Object.keys(EMOJIS).map(emojiName => {
+            if (EMOJIS[emojiName] === emoji) itemCode = emojiName;
+        });
+        return itemCode;
+    }
+
+    // Try to parse item codes.
+    static interpretItemCodeArg(text) {
+		let itemCode = null;
+        
+        // Interpret item code from the assumed item name not emoji.
+        itemCode = this.parseFromStr(text);
+
+        // Prioritse emoji overwriting/preference over text (if supplied).
+        const emojiID = MessagesHelper.strToEmojiID(text);
+        const emojiSupportedCode = this.emojiToItemCode(emojiID);
+        if (emojiSupportedCode) itemCode = emojiSupportedCode;
+
+        return itemCode;
+    }
+
+    // The event handler for when someone wants to pickup a dropped item message.
+    static async pickup(reaction, user) {
+        try {
+            // Find item code via emoji/emoji ID (trimmed) string in comparison to emojis.json.
+            const emojiID = MessagesHelper.getEmojiIdentifier(reaction.message);
+            const itemCode = this.emojiToItemCode(emojiID);
+                
+            // If invalid item code or not usable, don't allow pick up event.
+            if (!itemCode || !ItemsHelper.isUsable(itemCode))
+                return MessagesHelper.selfDestruct(reaction.message,
+                    `${user.username} you can't pick that up. (${itemCode})`
+                );
+            
+            // Clear the message to prevent abuse.
+            MessagesHelper.delayDelete(reaction.message, 33);
+
+            // Add recalculated item ownership to user.
+            const addEvent = await ItemsHelper.add(user.id, itemCode, 1);
+
+            // TODO: ADD TO STATISTICS!
+
+            // Format and display success message temporarily to channel and as a record in actions channel.
+            const emojiText = MessagesHelper.emojiText(emojiID);
+            const displayItemCode = this.escCode(itemCode);
+
+            ChannelsHelper.propagate(
+                reaction.message,
+                `${user.username} picked up ${displayItemCode} ${emojiText} and now has x${addEvent}.`,
+                'ACTIONS'
+            );
+        } catch(e) {
+			console.log('Error with pickup handler.');
+			console.error(e);
+        }
+    }
+
 
     static NON_USABLE_EMOJIS = [
         "COOP",

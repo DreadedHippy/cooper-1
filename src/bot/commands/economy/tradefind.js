@@ -16,12 +16,13 @@ export default class TradeFindCommand extends CoopCommand {
 			examples: ['tradefind', '!tradefind laxative'],
 			args: [
 				{
-					key: 'offerItemCode',
+					key: 'offerItemCodeStr',
 					prompt: 'Which item_code are you offering?',
-					type: 'string'
+					type: 'string',
+					default: ''
 				},
 				{
-					key: 'receiveItemCode',
+					key: 'receiveItemCodeStr',
 					prompt: 'Which item_code should you receive?',
 					type: 'string',
 					default: ''
@@ -30,32 +31,70 @@ export default class TradeFindCommand extends CoopCommand {
 		});
 	}
 
-	async run(msg, { offerItemCode, receiveItemCode }) {
+	async run(msg, { offerItemCodeStr, receiveItemCodeStr }) {
 		super.run(msg);
 
-		offerItemCode = ItemsHelper.parseFromStr(offerItemCode);
-		receiveItemCode = ItemsHelper.parseFromStr(receiveItemCode);
+		const offerItemCode = ItemsHelper.interpretItemCodeArg(offerItemCodeStr);
+		const receiveItemCode = ItemsHelper.interpretItemCodeArg(receiveItemCodeStr);
 
-		// If receive item code has been given, make sure only those matching returned.
-		if (receiveItemCode && receiveItemCode !== '') {
-			// If both items given, list only those matching.
+		// Check if offer item code is default (all) or valid.
+		if (offerItemCodeStr !== '' && !offerItemCode)
+			return MessagesHelper.selfDestruct(msg, `Invalid item code (${offerItemCodeStr}).`);
+
+		// Check if receive item code is default (all) or valid.
+		if (receiveItemCodeStr !== '' && !receiveItemCode)
+			return MessagesHelper.selfDestruct(msg, `Invalid item code (${receiveItemCodeStr}).`);
+
+		// Check for index request/all/latest.
+		if (offerItemCodeStr === '') {
+			// Return a list of 15 latest trades.
+			const all = await TradeHelper.all();
+			
+			// Add feedback for no trades currently.
+			if (all.length === 0) {
+				const noMatchesStr = `No existing trades listed/open.`;
+				return MessagesHelper.selfDestruct(msg, noMatchesStr);
+			}
+			
+			// Give feedback about trade listings.
+
+			// TODO: Provide more tips about !tradeaccept
+			const allTitleStr = `**Latest ${all.length} trade listings:**\n\n`;
+			return MessagesHelper.selfDestruct(msg, allTitleStr + TradeHelper.manyTradeItemsStr(all));
+
+		} else if (offerItemCodeStr !== '' && receiveItemCodeStr !== '') {
+			// If receive item code has been given, make sure only those matching returned.
 			const matches = await TradeHelper.findOfferReceiveMatches(offerItemCode, receiveItemCode);
 			
-			if (matches.length === 0) return MessagesHelper.selfDestruct(msg, 
-				`No existing trades exchanging ${offerItemCode} for ${receiveItemCode}`);
+			// Return no matching trades warning.
+			if (matches.length === 0) {
+				const noMatchesStr = `No existing trades exchanging ${offerItemCode} for ${receiveItemCode}`;
+				return MessagesHelper.selfDestruct(msg, noMatchesStr);
 
-			console.log(matches);
+			// Return matching trades.
+			} else {
+				// Format and present the matches if they exist.
+				const matchesTitleStr = `**Trades exchanging ${offerItemCode} for ${receiveItemCode}:**\n\n`;
+				const matchesStr = TradeHelper.manyTradeItemsStr(matches);
+				return MessagesHelper.selfDestruct(msg, matchesTitleStr + matchesStr);
+			}
 
-		} else {
+		} else if (offerItemCodeStr !== '' && receiveItemCodeStr === '') {
 			// If only offer item given, list all of that type.
 			const types = await TradeHelper.findReceiveMatches(offerItemCode);
 
-			if (matches.length === 0) return MessagesHelper.selfDestruct(msg, 
-				`No existing trades offering ${offerItemCode}`);
+			// Return no matching trades types warning.
+			if (types.length === 0) {
+				const noTypesStr = `No existing trades offering ${offerItemCode}`
+				return MessagesHelper.selfDestruct(msg, noTypesStr);
 
-			// TODO: Format and present the matches if they exist.
-
-			console.log(types);
+			// Return matching trades.
+			} else {
+				// Format and present the matches if they exist.
+				const typesTitleStr = `**Trades requiring your ${offerItemCode}:**\n\n`;
+				const typesStr = TradeHelper.manyTradeItemsStr(types);
+				return MessagesHelper.selfDestruct(msg, typesTitleStr + typesStr);
+			}
 		}
 
     }

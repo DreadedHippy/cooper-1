@@ -38,26 +38,62 @@ export default class HelpCommand extends CoopCommand {
 	async run(msg) {
 		super.run(msg);
 
-		let helpString = `**Available Commands**: \nTo find out more provide a command group or command name. !help {?CMD|GROUP?}\n\n`;
+		// TODO: ADD STATISTICS + SATISFACTION FEEDBACK FOR HELP
 		
-		// TODO: Add category support
+		
+		
+		// Improve hidden to filter by roles
+		const hiddenCommands = [
+			'nuke',
 
-		let category = null;
-
-		// TODO: Improve hidden to filter by roles
-		const hidden = [
-			'nuke'
+			// Added to prevent infinite loop on !help (help) text search.
+			'help'
 		];
 
+		
 		const hiddenGroups = [
 			'mod',
 			'misc'
 		];
 
+
+
+		// Store group names to detect matches and provide helpful/detailed feedback.
+		const categoryNames = this.commando.registry.groups
+			.filter(group => !hiddenGroups.includes(group.id))
+			.map(group => group.id.toLowerCase());
+
+		// Store command names to detect matches and provide helpful/detailed feedback.
+		const commandNames = [];
+		this.commando.registry.groups.map(group => group.commands
+			.filter(cmd => !hiddenCommands.includes(cmd.memberName))
+			.map(cmd => commandNames.push(cmd.memberName.toLowerCase()))
+		);
+
+		console.log(categoryNames);
+
+		// Check the message for matching category.
+		let categoryOpt = null;
+		const categoryNamesRegex = new RegExp(categoryNames.join('|'));
+		const categoryMatches = categoryNamesRegex.exec(msg.content);
+		if (categoryMatches) categoryOpt = categoryMatches[0];
+
+		// TODO: Critical support needed for command/command group DETAIL.
+		console.log('categoryMatches', categoryMatches);
+
+		// Check the message for matching command.
+		let commandOpt = null
+		const commandNamesRegex = new RegExp(commandNames.join('|'));
+		const commandMatches = commandNamesRegex.exec(msg.content);
+		if (commandMatches) commandOpt = commandMatches[0];
+
+		console.log('commandMatches', commandMatches);
+
         try {
 			// TODO: Implement properly.
 
-			if (!category) {
+			if (!categoryOpt && !commandOpt) {
+				let helpString = `**Available Commands**: \nTo find out more provide a command group or command name. !help {?CMD|GROUP?}\n\n`;
 				this.commando.registry.groups.map(group => {
 					if (hiddenGroups.includes(group.id)) return false;
 					helpString += `**${group.id}: ${group.name}**\n`;
@@ -69,7 +105,7 @@ export default class HelpCommand extends CoopCommand {
 
 						if (count === group.commands.size - 1) finalSpacer = '.';
 
-						if (hidden.includes(cmd.memberName)) return false;
+						if (hiddenGroups.includes(cmd.memberName)) return false;
 						helpString += `!${cmd.memberName}${finalSpacer}`;
 
 						count++;
@@ -78,16 +114,21 @@ export default class HelpCommand extends CoopCommand {
 				});
 	
 				textSplitter(helpString, 1500).map((helpSection, index) => {
-					// setTimeout(() => msg.direct(`\`\`\`\n${helpSection}\n\`\`\``), 1666 * index);
-					setTimeout(() => msg.direct(helpSection), 1666 * index);
+					setTimeout(() => msg.reply(helpSection), 1666 * index);
 				});
-
-			} else {
-
 			}
 
-        } catch(err) {
-            await msg.reply('Unable to send you the help DM. You probably have DMs disabled.');
+			if (commandOpt) {
+				msg.reply('I should help you with the command... ' + commandOpt)
+				
+			} else if (categoryOpt) {
+				msg.reply('I should help you with the category of commands you specified... ' + categoryOpt)
+			}
+
+        } catch(e) {
+			console.log('Help error.')
+			console.error(e);
+            msg.reply('Unable to send you the help DM. You probably have DMs disabled.');
         }
     }
     
