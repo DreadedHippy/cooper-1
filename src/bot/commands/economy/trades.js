@@ -16,13 +16,13 @@ export default class TradesCommand extends CoopCommand {
 			examples: ['trades', '!trades LAXATIVE'],
 			args: [
 				{
-					key: 'offerItemCode',
+					key: 'offerItemCodeStr',
 					prompt: 'Which item_code are you offering?',
 					type: 'string',
-					default: 'ALL'
+					default: ''
 				},
 				{
-					key: 'receiveItemCode',
+					key: 'receiveItemCodeStr',
 					prompt: 'Which item_code should you receive?',
 					type: 'string',
 					default: ''
@@ -31,25 +31,55 @@ export default class TradesCommand extends CoopCommand {
 		});
 	}
 
-	async run(msg, { offerItemCode, receiveItemCode }) {
+	async run(msg, { offerItemCodeStr, receiveItemCodeStr }) {
 		super.run(msg);
 
 		try {
-			// TODO: Implement trade slots
-			// const tradeslotStr = `${msg.author.username} has ?/? available trade slots currently.`;
+			// Load trades for that user.
+			const myTrades = await TradeHelper.getByTrader(msg.author.id);
+			
+			// Interpret item codes from strings or emojis.
+			const offerItemCode = ItemsHelper.interpretItemCodeArg(offerItemCodeStr);
+			const receiveItemCode = ItemsHelper.interpretItemCodeArg(receiveItemCodeStr);
+	
+			// Check if offer item code is default (all) or valid.
+			if (offerItemCodeStr !== '' && !offerItemCode)
+				return MessagesHelper.selfDestruct(msg, `Invalid item code (${offerItemCodeStr}).`);
+	
+			// Check if receive item code is default (all) or valid.
+			if (receiveItemCodeStr !== '' && !receiveItemCode)
+				return MessagesHelper.selfDestruct(msg, `Invalid item code (${receiveItemCodeStr}).`);
 
 			// Calculate used/total trade slots.
-			const tradeslotStr = `${msg.author.username} has ?/? active trades currently.`;
-			await MessagesHelper.selfDestruct(msg, tradeslotStr);
+			// TODO: Implement trade slots as a separate command.
+			const tradeslotStr = `${msg.author.username} has ${myTrades.length}/5 active trades slots.\n\n`;
 
-			// Distinguish between whether the user wants all trade information of a specific one.
-			if (offerItemCode === 'ALL') {
+			// User did not specify a preference, show default response.
+			if (offerItemCodeStr === '') {
 				// Display all trades
+				const allTradesStr = TradeHelper.manyTradeItemsStr(myTrades);
+				const allTitleStr = `**All ${msg.author.username}'s trades:**\n\n`;
+				return MessagesHelper.selfDestruct(msg, allTitleStr + tradeslotStr + allTradesStr);
+		
+				// Do this and then prevent eggs from removing themselves under that condition....
 
-			} else {
-				// Get trades by a certain item code
-				// TODO: Make work for single or both
-				// if (receiveItemCode && receiveItemCode !== '') {
+			// User attempted to provide offer item code, find only trades with that offer item.
+			} else if (offerItemCodeStr !== '' && receiveItemCodeStr === '') {
+				// Get trades based on a match.
+				const matchingOffered = myTrades.filter(trade => trade.offer_item === offerItemCode);
+				const matchingTitleStr = `**Trades requiring your ${offerItemCode}:**\n\n`;
+				const matchingTradesStr = TradeHelper.manyTradeItemsStr(matchingOffered);
+				return MessagesHelper.selfDestruct(msg, matchingTitleStr + matchingTradesStr);				
+			
+			// User attempted to provide both item codes, find only matches.
+			} else if (offerItemCodeStr !== '' && receiveItemCodeStr !== '') {
+				// Get trades based on a match.
+				const matchingOfferedReceived = myTrades.filter(trade => 
+					trade.offer_item === offerItemCode && trade.receive_item === receiveItemCode
+				);
+				const matchesTitleStr = `**Trades exchanging ${offerItemCode} for ${receiveItemCode}:**\n\n`;
+				const matchingOfferedReceivedStr = TradeHelper.manyTradeItemsStr(matchingOfferedReceived);
+				return MessagesHelper.selfDestruct(msg, matchesTitleStr + matchingOfferedReceivedStr);
 			}
 			
 		} catch(e) {

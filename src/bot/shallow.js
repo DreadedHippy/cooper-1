@@ -3,12 +3,13 @@ import Database from './core/setup/database';
 import STATE from './state';
 import dotenv from 'dotenv';
 
-
 // v DEV IMPORT AREA v
-
 import BlockIO from 'block_io';
 import ReservesHelper from './community/features/economy/reservesHelper';
-
+import ElectionHelper from './community/features/hierarchy/election/electionHelper';
+import ItemsHelper from './community/features/items/itemsHelper';
+import ChannelsHelper from './core/entities/channels/channelsHelper';
+import TradeHelper from './community/features/economy/tradeHelper';
 // ^ DEV IMPORT AREA ^
 
 // Load ENV variables.
@@ -26,34 +27,30 @@ const shallowBot = async () => {
     STATE.CLIENT.on('ready', async () => {
         console.log('Shallow bot is ready');
             
+        console.log(ItemsHelper.interpretItemCodeArg('average egg'));
+        console.log(ItemsHelper.interpretItemCodeArg(':frying_pan:796486324021887048'));
+        console.log(ItemsHelper.interpretItemCodeArg('🛡️'));
+        
+        
         // DEV WORK AND TESTING ON THE LINES BELOW.
 
-        STATE.WALLET = new BlockIO(process.env.BITCOIN_APIKEY, process.env.WALLET_PIN);
-        console.log(await ReservesHelper.balanceText());
-        
-        
-        // NOTES AND LONGER TERM CHALLENGES/ISSUES:
-        // List my own/users trades (like items command).
-        // List all trades, trades of item, trades of matching items.
-        // Get exchange rate based on current trades for that item
-
-        // Add exchange rate method (command)
-        // My trades command including # slots
-        // Create a trade.
-        // Accept a trade.
-        // ...
-        // Accept a specific trade may need a command
-
-
-        // Hard, Quick:
-        // Add a multiplier to drops for wood etc... too weak atm.
-
-        // Harder:
-        // Finish actions messages for woodcutting/mining/crate drop
-        // Detect server message/activity velocity increases (as % preferably).
-        // Detect the completed gathering of wood/rocks
+            // Sacrifice reform as promised.
+            // No more than 5 at once
+            // Message at the top of channel
+            // Delete after 72 hours
+            // Add column and prevent repeats/back to back sacrifice
 
         // DEV WORK AND TESTING ON THE LINES ABOVE.
+
+
+        // NOTES AND LONGER TERM CHALLENGES/ISSUES:
+        
+        // Hard, Quick:
+        
+        // Harder:
+            // Detect server message/activity velocity increases (as % preferably).
+            // Community set and managed variable/value.
+
     });
 
 };

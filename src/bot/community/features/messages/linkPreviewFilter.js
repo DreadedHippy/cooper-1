@@ -17,7 +17,10 @@ export default class LinkPreviewFilter {
             // Check if message contains link.
             if (this.isLink(msg.content)) {
                 MessagesHelper.delayReact(msg, '🖼️', 666);
-                msg.suppressEmbeds(true);
+
+                // If it does not contain gif or tenor, suppress preview.
+                if (msg.content.indexOf('tenor') > -1 || msg.content.indexOf('gif') > -1)
+                    msg.suppressEmbeds(true);
             }
         }
 
@@ -25,13 +28,13 @@ export default class LinkPreviewFilter {
         static onReaction(reaction, user) {
             if (UsersHelper.isCooper(user.id)) return false;
             if (UsersHelper.isCooperMsg(reaction.message)) return false;
+            if (reaction.emoji.name !== '🖼️') return false;
 
-            // TODO: Test for embeds instead.
-            const toggleVal = STATE.CHANCE.bool({ likelihood: 50 });
+            // If not suppressed, default to true (suppressive).
+            const toggleVal = reaction.message.embeds.length > 0;
 
-            if (reaction.emoji.name === '🖼️') setTimeout(() => {
-                reaction.message.suppressEmbeds(toggleVal);
-            }, 999);
+            // "Rate-limited" embed suppression.
+            setTimeout(() => reaction.message.suppressEmbeds(toggleVal), 666);
         }
 
 }

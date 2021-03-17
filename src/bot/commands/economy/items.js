@@ -1,6 +1,7 @@
 import ItemsHelper from '../../../bot/community/features/items/itemsHelper';
 import CoopCommand from '../../core/entities/coopCommand';
 import MessagesHelper from '../../core/entities/messages/messagesHelper';
+import EMOJIS from '../../core/config/emojis.json';
 
 export default class ItemsCommand extends CoopCommand {
 
@@ -36,6 +37,9 @@ export default class ItemsCommand extends CoopCommand {
 		if (msg.mentions.users.first()) targetUser = msg.mentions.users.first();
 		if (!targetUser) targetUser = msg.author;
 		
+		// Try to interpret itemCode/itemEmoji arg
+		const itemInput = ItemsHelper.interpretItemCodeArg(itemCode);
+
         try {
 			const name = targetUser.username;
 
@@ -45,17 +49,29 @@ export default class ItemsCommand extends CoopCommand {
 				const items = await ItemsHelper.getUserItems(targetUser.id);
 				if (items.length === 0) return MessagesHelper.selfDestruct(msg, noItemsMsg);
 				else {
+					// Sort owned items by most first.
+					items.sort((a, b) => (a.quantity < b.quantity) ? 1 : -1);
+
 					const itemDisplayMsg = ItemsHelper.formItemDropText(targetUser, items);
 					return MessagesHelper.selfDestruct(msg, itemDisplayMsg, 666, 30000);
 				}
-
-				// Check a specific item instead.
-			} else {
-				const noneOfItemMsg = `${name} does not own ${itemCode}.`;
-				const itemQty = await ItemsHelper.getUserItemQty(targetUser.id, itemCode);
-				if (itemQty <= 0) return MessagesHelper.selfDestruct(msg, noneOfItemMsg);
-				else return MessagesHelper.selfDestruct(msg, `${name} owns ${itemQty}x${itemCode}.`);
 			}
+
+			// Check if itemCode valid to use.
+			if (!ItemsHelper.isUsable(itemInput))
+				return MessagesHelper.selfDestruct(msg, `${name}, ${itemInput} seems invalid.`);
+
+			// Check a specific item instead.
+			const itemQty = await ItemsHelper.getUserItemQty(targetUser.id, itemInput);
+			
+			// Send specific item count.
+
+			const emoji = MessagesHelper.emojiText(EMOJIS[itemInput]);
+			if (itemQty > 0)  
+				return MessagesHelper.selfDestruct(msg, `${name} owns ${itemQty}x${itemInput} ${emoji}.`);
+			else 
+				return MessagesHelper.selfDestruct(msg, `${name} does not own ${itemInput}.`);
+
 
         } catch(err) {
             console.error(err);

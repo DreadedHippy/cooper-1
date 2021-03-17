@@ -1,5 +1,6 @@
 import ChannelsHelper from "../../../../core/entities/channels/channelsHelper";
 import MessagesHelper from "../../../../core/entities/messages/messagesHelper";
+import ReactionHelper from "../../../../core/entities/messages/reactionHelper";
 import STATE from "../../../../state";
 import PointsHelper from "../../points/pointsHelper";
 import ItemsHelper from "../itemsHelper";
@@ -29,8 +30,11 @@ export default class ToxicEggHandler {
                     // Apply the damage to the target's points.
                     const updatedPoints = await PointsHelper.addPointsByID(targetID, damage);
 
+                    const popularity = ReactionHelper.countType(reaction.message, '☢️');
+                    if (popularity < 3) MessagesHelper.delayReactionRemove(reaction, 333);
+
+
                     // Add visuals animation
-                    MessagesHelper.delayReactionRemove(reaction, 333);
                     MessagesHelper.delayReact(reaction.message, '☢️', 666);
 
                     const damageInfoText = ` ${damage} points (${updatedPoints})`;
